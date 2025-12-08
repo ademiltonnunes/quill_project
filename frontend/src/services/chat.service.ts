@@ -13,10 +13,9 @@ export interface ChatRequest {
 
 export interface ChatStreamCallbacks {
   onText?: (text: string) => void;
-  onThinking?: (thinking: string) => void;
   onToolCalls?: (toolCalls: ToolCall[]) => void;
   onError?: (error: Error) => void;
-  onComplete?: (text: string, toolCalls: ToolCall[], thinking: string) => void;
+  onComplete?: (text: string, toolCalls: ToolCall[]) => void;
 }
 
 export interface AbortableChatRequest {
@@ -33,7 +32,6 @@ export async function sendChatRequest(
   let abortHandler: (() => void) | null = null;
   let isCleanedUp = false;
 
-  // If an external signal is provided, forward its abort to our controller
   if (abortSignal) {
     abortHandler = () => {
       if (!isCleanedUp) {
@@ -43,7 +41,6 @@ export async function sendChatRequest(
     abortSignal.addEventListener('abort', abortHandler);
   }
 
-  // Cleanup function to remove event listener
   const cleanup = () => {
     if (abortSignal && abortHandler && !isCleanedUp) {
       abortSignal.removeEventListener('abort', abortHandler);
@@ -51,7 +48,6 @@ export async function sendChatRequest(
     }
   };
 
-  // Start the request asynchronously
   (async () => {
     try {
       const response = await fetch(`${API_BASE_URL}${CHAT_ENDPOINT}`, {
@@ -82,7 +78,6 @@ export async function sendChatRequest(
       cleanup();
     } catch (error) {
       cleanup();
-      // Don't report abort errors as user-facing errors
       if (error instanceof Error && error.name === 'AbortError') {
         return;
       }
@@ -92,7 +87,6 @@ export async function sendChatRequest(
       throw error;
     }
   })().catch(() => {
-    // Error already handled in the catch block above
   });
 
   return {
@@ -110,30 +104,48 @@ async function processStreamResponse(
 ): Promise<void> {
   const { parseStreamResponse } = await import('../utils/streamParser');
   let accumulatedText = '';
-  let accumulatedThinking = '';
   let accumulatedToolCalls: ToolCall[] = [];
+  const toolCallsMap = new Map<string, ToolCall>();
 
   const result = await parseStreamResponse(body, abortSignal, {
     onTextDelta: (text) => {
       accumulatedText += text;
       callbacks.onText?.(accumulatedText);
     },
-    onThinkingDelta: (thinking) => {
-      accumulatedThinking = thinking;
-      callbacks.onThinking?.(thinking);
+    onToolCallStart: (toolCall) => {
+      const partialToolCall: ToolCall = {
+        id: toolCall.id,
+        type: 'function',
+        function: {
+          name: toolCall.name,
+          arguments: '{}',
+        },
+      };
+      toolCallsMap.set(toolCall.id, partialToolCall);
+      
+      const currentToolCalls = Array.from(toolCallsMap.values());
+      callbacks.onToolCalls?.(currentToolCalls);
     },
-    onToolCallStart: () => {},
-    onToolCallDelta: () => {},
+    onToolCallDelta: (toolCallId, jsonDelta) => {
+      const toolCall = toolCallsMap.get(toolCallId);
+      if (toolCall) {
+        const currentArgs = toolCall.function.arguments === '{}' ? '' : toolCall.function.arguments;
+        toolCall.function.arguments = currentArgs + jsonDelta;
+        toolCallsMap.set(toolCallId, toolCall);
+        
+        const currentToolCalls = Array.from(toolCallsMap.values());
+        callbacks.onToolCalls?.(currentToolCalls);
+      }
+    },
   });
 
   accumulatedText = result.text;
-  accumulatedThinking = result.thinking;
   accumulatedToolCalls = result.toolCalls;
 
   if (accumulatedToolCalls.length > 0) {
     callbacks.onToolCalls?.(accumulatedToolCalls);
   }
 
-  callbacks.onComplete?.(accumulatedText, accumulatedToolCalls, accumulatedThinking);
+  callbacks.onComplete?.(accumulatedText, accumulatedToolCalls);
 }
 

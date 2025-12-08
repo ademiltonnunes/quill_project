@@ -1,46 +1,40 @@
 import React, { useEffect } from 'react';
 import { ChatMessage } from './ChatMessage';
-import { ThinkingMessage } from './ThinkingMessage';
 import type { ChatMessage as ChatMessageType } from '../types';
 
 interface ChatMessagesProps {
   messages: ChatMessageType[];
   isStreaming: boolean;
-  streamingText: string;
-  streamingThinking: string;
+  isExecutingTool: boolean;
   messagesEndRef: React.RefObject<HTMLDivElement | null>;
 }
 
 export const ChatMessages: React.FC<ChatMessagesProps> = ({
   messages,
   isStreaming,
-  streamingText,
-  streamingThinking,
+  isExecutingTool,
   messagesEndRef,
 }) => {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, streamingText, streamingThinking, messagesEndRef]);
+  }, [messages, messagesEndRef]);
+  
+  const showLoading = isStreaming || isExecutingTool;
+  const lastMessage = messages[messages.length - 1];
+  const isLastMessageAssistant = lastMessage?.role === 'assistant';
+  const showLoadingOnLastMessage = showLoading && isLastMessageAssistant;
 
   return (
-    <div className="chat-messages" role="log" aria-live="polite" aria-label="Chat messages" aria-busy={isStreaming}>
-      {messages.map((msg) => (
-        <ChatMessage key={msg.id} message={msg} />
-      ))}
-      {isStreaming && (
-        <div className="message message-assistant" aria-label="Assistant message streaming" aria-busy="true">
-          <div className="message-role" aria-hidden="true">assistant</div>
-          <ThinkingMessage 
-            key="streaming-thinking" 
-            thinking={streamingThinking} 
-            isStreaming={true}
-            hasReplyStarted={!!streamingText}
-          />
-          {streamingText && (
-            <div className="message-content streaming" aria-label="Streaming response">{streamingText}</div>
-          )}
-        </div>
-      )}
+    <div className="chat-messages" role="log" aria-live="polite" aria-label="Chat messages" aria-busy={showLoading}>
+      {messages.map((msg, index) => {
+        const isLast = index === messages.length - 1;
+        const showLoadingForThisMessage = isLast && showLoadingOnLastMessage;
+        return (
+          <div key={msg.id}>
+            <ChatMessage message={msg} showLoading={showLoadingForThisMessage} />
+          </div>
+        );
+      })}
       <div ref={messagesEndRef} aria-hidden="true" />
     </div>
   );

@@ -1,12 +1,12 @@
 import React from 'react';
-import { ThinkingMessage } from './ThinkingMessage';
 import type { ChatMessage as ChatMessageType, ToolCall } from '../types';
 
 interface ChatMessageProps {
   message: ChatMessageType;
+  showLoading?: boolean;
 }
 
-export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
+export const ChatMessage: React.FC<ChatMessageProps> = ({ message, showLoading = false }) => {
   if (message.role === 'tool') {
     return (
       <div className={`message message-${message.role}`} role="article" aria-label={`${message.role} message`}>
@@ -22,14 +22,9 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
   return (
     <div className={`message message-${message.role}`} role="article" aria-label={`${message.role} message`}>
       <div className="message-role" aria-hidden="true">{message.role}</div>
-      {message.thinking && message.thinking.trim() && (
-        <ThinkingMessage 
-          thinking={message.thinking} 
-          isStreaming={false}
-          componentId={message.id}
-        />
+      {message.content && message.content.trim() && (
+        <div className="message-content">{message.content}</div>
       )}
-      <div className="message-content">{message.content}</div>
       {message.toolCalls && message.toolCalls.length > 0 && (
         <div className="tool-calls" role="list" aria-label="Tool calls">
           <div className="tool-calls-header">Executing tools:</div>
@@ -39,6 +34,15 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
               <span className="tool-call-args">({tc.function.arguments})</span>
             </div>
           ))}
+        </div>
+      )}
+      {showLoading && (
+        <div className="message-loading" aria-label="Loading">
+          <div className="loading-dots">
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
         </div>
       )}
     </div>

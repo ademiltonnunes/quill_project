@@ -3,7 +3,6 @@ import type { ToolCall } from '../types';
 export interface StreamParseResult {
   text: string;
   toolCalls: ToolCall[];
-  thinking: string;
 }
 
 interface ToolCallAccumulator {
@@ -14,7 +13,6 @@ interface ToolCallAccumulator {
 
 export interface StreamCallbacks {
   onTextDelta?: (text: string) => void;
-  onThinkingDelta?: (thinking: string) => void;
   onToolCallStart?: (toolCall: { id: string; name: string }) => void;
   onToolCallDelta?: (toolCallId: string, jsonDelta: string) => void;
 }
@@ -76,77 +74,11 @@ export async function parseStreamResponse(
   const decoder = new TextDecoder();
   let buffer = '';
   let accumulatedText = '';
-  let accumulatedThinking = '';
-  let isInThinking = false;
-  let tagBuffer = ''; // Buffer to handle tags split across chunks
   const toolCallsMap = new Map<string, ToolCallAccumulator>();
   const toolCallsByIndex: ToolCallAccumulator[] = [];
 
-  function extractThinking(text: string, currentState: boolean, tagBufferRef: { value: string }): { text: string; thinking: string; isInThinking: boolean; remainingBuffer: string } {
-    let result = '';
-    let thinking = '';
-    let inThinking = currentState;
-    let i = 0;
-    
-    const openTag = '<thinking>';
-    const closeTag = '</thinking>';
-    const openTagLower = openTag.toLowerCase();
-    const closeTagLower = closeTag.toLowerCase();
-    
-    // Prepend any remaining buffer from previous chunk
-    const fullText = tagBufferRef.value + text;
-    tagBufferRef.value = '';
-    
-    while (i < fullText.length) {
-      // Check for opening tag (case-insensitive)
-      if (i + openTag.length <= fullText.length) {
-        const potentialOpen = fullText.substring(i, i + openTag.length).toLowerCase();
-        if (potentialOpen === openTagLower) {
-          inThinking = true;
-          i += openTag.length;
-          continue;
-        }
-      }
-      
-      // Check for closing tag (case-insensitive)
-      if (i + closeTag.length <= fullText.length) {
-        const potentialClose = fullText.substring(i, i + closeTag.length).toLowerCase();
-        if (potentialClose === closeTagLower) {
-          inThinking = false;
-          i += closeTag.length;
-          continue;
-        }
-      }
-      
-      // If we're near the end and might have a partial tag, buffer it
-      const remainingChars = fullText.length - i;
-      const maxTagLength = Math.max(openTag.length, closeTag.length);
-      if (remainingChars < maxTagLength) {
-        // Check if we have a potential partial tag at the end
-        const partial = fullText.substring(i);
-        const partialLower = partial.toLowerCase();
-        if (partialLower.startsWith('<') && (partialLower.includes('thinking') || partialLower.length < maxTagLength)) {
-          // Might be a partial tag, buffer it for next chunk
-          tagBufferRef.value = partial;
-          break;
-        }
-      }
-      
-      // Add character to appropriate buffer
-      if (inThinking) {
-        thinking += fullText[i];
-      } else {
-        result += fullText[i];
-      }
-      i++;
-    }
-    
-    return { text: result, thinking, isInThinking: inThinking, remainingBuffer: tagBufferRef.value };
-  }
-
   try {
     while (true) {
-      // Check if aborted
       if (abortSignal?.aborted) {
         reader.cancel();
         break;
@@ -203,20 +135,8 @@ export async function parseStreamResponse(
 
         if (parsed.type === 'content_block_delta' && parsed.delta?.type === 'text_delta') {
           if (parsed.delta.text) {
-            const tagBufferRef = { value: tagBuffer };
-            const extracted = extractThinking(parsed.delta.text, isInThinking, tagBufferRef);
-            tagBuffer = extracted.remainingBuffer;
-            isInThinking = extracted.isInThinking;
-            
-            if (extracted.thinking) {
-              accumulatedThinking += extracted.thinking;
-              callbacks.onThinkingDelta?.(accumulatedThinking);
-            }
-            
-            if (extracted.text) {
-              accumulatedText += extracted.text;
-              callbacks.onTextDelta?.(extracted.text);
-            }
+            accumulatedText += parsed.delta.text;
+            callbacks.onTextDelta?.(parsed.delta.text);
           }
         }
 
@@ -228,20 +148,8 @@ export async function parseStreamResponse(
             }
             
             if (block.type === 'text' && block.text) {
-              const tagBufferRef = { value: tagBuffer };
-              const extracted = extractThinking(block.text, isInThinking, tagBufferRef);
-              tagBuffer = extracted.remainingBuffer;
-              isInThinking = extracted.isInThinking;
-              
-              if (extracted.thinking) {
-                accumulatedThinking += extracted.thinking;
-                callbacks.onThinkingDelta?.(accumulatedThinking);
-              }
-              
-              if (extracted.text) {
-                accumulatedText += extracted.text;
-                callbacks.onTextDelta?.(extracted.text);
-              }
+              accumulatedText += block.text;
+              callbacks.onTextDelta?.(block.text);
             }
             
             if (block.type === 'tool_use' && block.id && block.name) {
@@ -302,6 +210,5 @@ export async function parseStreamResponse(
   return {
     text: accumulatedText,
     toolCalls,
-    thinking: accumulatedThinking,
   };
 }

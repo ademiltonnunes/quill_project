@@ -11,9 +11,10 @@ interface ChatInterfaceProps {
   onToolResultsReady?: (
     sendToolResults: (toolResults: Array<{ toolCallId: string; result: string; success: boolean }>) => Promise<void>
   ) => void;
+  onExecutingToolChange?: (isExecuting: boolean) => void;
 }
 
-export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onToolCalls, onToolResultsReady }) => {
+export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onToolCalls, onToolResultsReady, onExecutingToolChange }) => {
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const {
@@ -21,8 +22,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onToolCalls, onToo
     input,
     setInput,
     isStreaming,
-    streamingText,
-    streamingThinking,
+    isExecutingTool,
     sendMessage,
     sendToolResults,
     cancelRequest,
@@ -35,17 +35,18 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onToolCalls, onToo
     },
   });
 
-  // Expose sendToolResults to parent component
   useEffect(() => {
     if (onToolResultsReady && sendToolResults) {
       onToolResultsReady(sendToolResults);
     }
   }, [onToolResultsReady, sendToolResults]);
 
-  // Focus management: focus input after sending message
+  useEffect(() => {
+    onExecutingToolChange?.(isExecutingTool);
+  }, [isExecutingTool, onExecutingToolChange]);
+
   useEffect(() => {
     if (!isStreaming && messages.length > 0) {
-      // Small delay to ensure DOM is updated
       const timer = setTimeout(() => {
         inputRef.current?.focus();
       }, 100);
@@ -67,8 +68,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onToolCalls, onToo
       <ChatMessages
         messages={messages}
         isStreaming={isStreaming}
-        streamingText={streamingText}
-        streamingThinking={streamingThinking}
+        isExecutingTool={isExecutingTool}
         messagesEndRef={messagesEndRef}
       />
       <ChatInput

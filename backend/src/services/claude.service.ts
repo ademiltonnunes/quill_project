@@ -16,32 +16,74 @@ function formatContentToString(content: string | MessageContent[] | unknown): st
 }
 
 function formatMessagesForClaude(messages: Message[]) {
-  return messages.map((msg) => {
-    if (msg.role === 'tool' && msg.tool_call_id) {
-      return {
-        role: 'user' as const,
-        content: [
-          {
-            type: 'tool_result' as const,
-            tool_use_id: msg.tool_call_id,
-            content: formatContentToString(msg.content),
-          },
-        ],
-      };
-    }
+  return messages
+    .filter((msg) => {
+      if (msg.role === 'assistant' && (!msg.content || (typeof msg.content === 'string' && msg.content.trim() === '')) && !msg.tool_calls) {
+        return false;
+      }
+      return true;
+    })
+    .map((msg) => {
+      if (msg.role === 'tool' && msg.tool_call_id) {
+        return {
+          role: 'user' as const,
+          content: [
+            {
+              type: 'tool_result' as const,
+              tool_use_id: msg.tool_call_id,
+              content: formatContentToString(msg.content),
+            },
+          ],
+        };
+      }
 
-    if (msg.role === 'system') {
+      if (msg.role === 'system') {
+        return {
+          role: 'user' as const,
+          content: formatContentToString(msg.content),
+        };
+      }
+
+      if (msg.role === 'assistant' && msg.tool_calls && msg.tool_calls.length > 0) {
+        const contentArray: Array<{ type: string; text?: string; id?: string; name?: string; input?: unknown }> = [];
+        
+        if (msg.content && typeof msg.content === 'string' && msg.content.trim()) {
+          contentArray.push({
+            type: 'text',
+            text: msg.content,
+          });
+        }
+        
+        for (const toolCall of msg.tool_calls) {
+          try {
+            const args = JSON.parse(toolCall.function.arguments);
+            contentArray.push({
+              type: 'tool_use',
+              id: toolCall.id,
+              name: toolCall.function.name,
+              input: args,
+            });
+          } catch (e) {
+            contentArray.push({
+              type: 'tool_use',
+              id: toolCall.id,
+              name: toolCall.function.name,
+              input: {},
+            });
+          }
+        }
+        
+        return {
+          role: 'assistant' as const,
+          content: contentArray,
+        };
+      }
+
       return {
-        role: 'user' as const,
+        role: msg.role as 'user' | 'assistant',
         content: formatContentToString(msg.content),
       };
-    }
-
-    return {
-      role: msg.role as 'user' | 'assistant',
-      content: formatContentToString(msg.content),
-    };
-  });
+    });
 }
 
 export class ClaudeService implements AIProvider {
@@ -87,7 +129,6 @@ export class ClaudeService implements AIProvider {
           errorMessage = `Claude API error: ${errorJson.error.message}`;
         }
       } catch {
-        // Use original error text if parsing fails
       }
       
       throw new ProviderError(errorMessage, 'claude', response.status);

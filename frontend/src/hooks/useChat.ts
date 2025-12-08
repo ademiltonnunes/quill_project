@@ -10,7 +10,8 @@ export interface UseChatReturn {
   setInput: (value: string) => void;
   isStreaming: boolean;
   streamingText: string;
-  streamingThinking: string;
+  streamingToolCalls: ToolCall[];
+  isExecutingTool: boolean;
   sendMessage: () => Promise<void>;
   sendToolResults: (toolResults: Array<{ toolCallId: string; result: string; success: boolean }>) => Promise<void>;
   cancelRequest: () => void;
@@ -21,34 +22,37 @@ export interface UseChatReturn {
 export interface UseChatOptions {
   onToolCalls?: (toolCalls: ToolCall[]) => void;
   onError?: (error: string) => void;
+  onToolExecutionStart?: () => void;
+  onToolExecutionEnd?: () => void;
 }
 
 export function useChat(options: UseChatOptions = {}): UseChatReturn {
-  const { onToolCalls, onError } = options;
+  const { onToolCalls, onError, onToolExecutionStart, onToolExecutionEnd } = options;
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingText, setStreamingText] = useState('');
-  const [streamingThinking, setStreamingThinking] = useState('');
+  const [streamingToolCalls, setStreamingToolCalls] = useState<ToolCall[]>([]);
+  const [isExecutingTool, setIsExecutingTool] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesRef = useRef<ChatMessage[]>([]);
   const abortControllerRef = useRef<AbortableChatRequest | null>(null);
-  const streamingThinkingRef = useRef<string>('');
+  const streamingAssistantMessageIdRef = useRef<string | null>(null);
+  const streamingTextRef = useRef<string>('');
+  const streamingToolCallsRef = useRef<ToolCall[]>([]);
 
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
 
-  useEffect(() => {
-    streamingThinkingRef.current = streamingThinking;
-  }, [streamingThinking]);
-
   const resetStreamingState = useCallback(() => {
     setIsStreaming(false);
     setStreamingText('');
-    setStreamingThinking('');
-    streamingThinkingRef.current = '';
+    setStreamingToolCalls([]);
+    streamingTextRef.current = '';
+    streamingToolCallsRef.current = [];
+    streamingAssistantMessageIdRef.current = null;
     abortControllerRef.current = null;
   }, []);
 
@@ -58,43 +62,64 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
         role: msg.role,
         content: msg.content,
         ...(msg.toolCallId && { tool_call_id: msg.toolCallId }),
+        ...(msg.toolCalls && msg.toolCalls.length > 0 && { 
+          tool_calls: msg.toolCalls.map(tc => ({
+            id: tc.id,
+            type: tc.type,
+            function: {
+              name: tc.function.name,
+              arguments: tc.function.arguments,
+            },
+          })),
+        }),
       }))
-      .filter((msg) => msg.content.trim().length > 0);
-  }, []);
-
-  const createAssistantMessage = useCallback((text: string, toolCalls: ToolCall[], thinking: string): ChatMessage => {
-    const finalThinking = streamingThinkingRef.current || thinking || '';
-    return {
-      id: `msg-${Date.now()}`,
-      role: 'assistant',
-      content: text || '',
-      toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
-      thinking: finalThinking.trim() ? finalThinking : undefined,
-    };
+      .filter((msg) => {
+        if (msg.role === 'tool') {
+          return true;
+        }
+        if (msg.role === 'assistant' && msg.tool_calls && msg.tool_calls.length > 0) {
+          return true;
+        }
+        return msg.content.trim().length > 0;
+      });
   }, []);
 
   const sendMessage = useCallback(async () => {
     if (!input.trim() || isStreaming) return;
 
-    // Cancel any ongoing request
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
 
     const userMessage: ChatMessage = {
-      id: `msg-${Date.now()}`,
+      id: `msg-user-${Date.now()}`,
       role: 'user',
       content: input.trim(),
     };
 
-    const newMessages = [...messagesRef.current, userMessage];
+    const currentMessages = messagesRef.current;
+    const newMessages = [...currentMessages, userMessage];
     setMessages(newMessages);
     setInput('');
+
+    const assistantMessageId = `msg-assistant-${Date.now()}`;
+    streamingAssistantMessageIdRef.current = assistantMessageId;
+    
+    const initialAssistantMessage: ChatMessage = {
+      id: assistantMessageId,
+      role: 'assistant',
+      content: '',
+      toolCalls: undefined,
+    };
+    
+    setMessages((prev) => [...prev, initialAssistantMessage]);
+    
     setIsStreaming(true);
     setStreamingText('');
-    setStreamingThinking('');
-    streamingThinkingRef.current = '';
+    setStreamingToolCalls([]);
+    streamingTextRef.current = '';
+    streamingToolCallsRef.current = [];
 
     try {
       abortControllerRef.current = await sendChatRequest(
@@ -103,19 +128,56 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
           tools: tableToolDefinitions,
         },
         {
-          onText: (text) => setStreamingText(text),
-          onThinking: (thinking) => {
-            setStreamingThinking(thinking);
-            streamingThinkingRef.current = thinking;
+          onText: (text) => {
+            setStreamingText(text);
+            streamingTextRef.current = text;
+            
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === streamingAssistantMessageIdRef.current
+                  ? { ...msg, content: text }
+                  : msg
+              )
+            );
           },
-          onComplete: (text, toolCalls, thinking) => {
-            const assistantMessage = createAssistantMessage(text, toolCalls, thinking);
-            setMessages((prev) => [...prev, assistantMessage]);
-            resetStreamingState();
+          
+          onToolCalls: (toolCalls) => {
+            setStreamingToolCalls(toolCalls);
+            streamingToolCallsRef.current = toolCalls;
+            
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === streamingAssistantMessageIdRef.current
+                  ? { ...msg, toolCalls: toolCalls }
+                  : msg
+              )
+            );
+          },
+          
+          onComplete: (text, toolCalls) => {
+            const finalText = text || streamingTextRef.current || '';
+            
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === streamingAssistantMessageIdRef.current
+                  ? {
+                      ...msg,
+                      content: finalText,
+                      toolCalls: toolCalls.length > 0 ? toolCalls : msg.toolCalls,
+                    }
+                  : msg
+              )
+            );
+            
             if (toolCalls.length > 0) {
+              setIsExecutingTool(true);
+              onToolExecutionStart?.();
               onToolCalls?.(toolCalls);
+            } else {
+              resetStreamingState();
             }
           },
+          
           onError: (error) => {
             resetStreamingState();
             onError?.(getUserFriendlyError(error));
@@ -128,7 +190,7 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
         onError?.(getUserFriendlyError(error));
       }
     }
-  }, [input, isStreaming, onToolCalls, onError, formatMessagesForBackend, createAssistantMessage, resetStreamingState]);
+  }, [input, isStreaming, onToolCalls, onError, formatMessagesForBackend, resetStreamingState]);
 
   const cancelRequest = useCallback(() => {
     if (abortControllerRef.current) {
@@ -139,15 +201,18 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 
   const sendToolResults = useCallback(
     async (toolResults: Array<{ toolCallId: string; result: string; success: boolean }>) => {
-      if (isStreaming || toolResults.length === 0) return;
+      if (toolResults.length === 0) {
+        setIsExecutingTool(false);
+        onToolExecutionEnd?.();
+        resetStreamingState();
+        return;
+      }
 
-      // Cancel any ongoing request
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
         abortControllerRef.current = null;
       }
 
-      // Add tool result messages to the conversation
       const toolResultMessages: ChatMessage[] = toolResults.map((tr, index) => ({
         id: `tool-result-${Date.now()}-${index}`,
         role: 'tool' as const,
@@ -155,47 +220,106 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
         toolCallId: tr.toolCallId,
       }));
 
-      const newMessages = [...messagesRef.current, ...toolResultMessages];
+      const assistantMessageId = `msg-assistant-${Date.now()}`;
+      streamingAssistantMessageIdRef.current = assistantMessageId;
+      
+      const followUpAssistantMessage: ChatMessage = {
+        id: assistantMessageId,
+        role: 'assistant',
+        content: '',
+        toolCalls: undefined,
+      };
+
+      const currentMessages = messagesRef.current;
+      const newMessages = [...currentMessages, ...toolResultMessages, followUpAssistantMessage];
+      
       setMessages(newMessages);
+      
       setIsStreaming(true);
       setStreamingText('');
-      setStreamingThinking('');
-      streamingThinkingRef.current = '';
+      setStreamingToolCalls([]);
+      streamingTextRef.current = '';
+      streamingToolCallsRef.current = [];
 
       try {
+        const messagesForBackend = [...currentMessages, ...toolResultMessages];
+        
         abortControllerRef.current = await sendChatRequest(
           {
-            messages: formatMessagesForBackend(newMessages),
+            messages: formatMessagesForBackend(messagesForBackend),
             tools: tableToolDefinitions,
           },
           {
-            onText: (text) => setStreamingText(text),
-            onThinking: (thinking) => {
-              setStreamingThinking(thinking);
-              streamingThinkingRef.current = thinking;
+            onText: (text) => {
+              setStreamingText(text);
+              streamingTextRef.current = text;
+              
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === streamingAssistantMessageIdRef.current
+                    ? { ...msg, content: text }
+                    : msg
+                )
+              );
             },
-            onComplete: (text, toolCalls, thinking) => {
-              const assistantMessage = createAssistantMessage(text, toolCalls, thinking);
-              setMessages((prev) => [...prev, assistantMessage]);
-              resetStreamingState();
+            
+            onToolCalls: (toolCalls) => {
+              setStreamingToolCalls(toolCalls);
+              streamingToolCallsRef.current = toolCalls;
+              
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === streamingAssistantMessageIdRef.current
+                    ? { ...msg, toolCalls: toolCalls }
+                    : msg
+                )
+              );
+            },
+            
+            onComplete: (text, toolCalls) => {
+              const finalText = text || streamingTextRef.current || '';
+              
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === streamingAssistantMessageIdRef.current
+                    ? {
+                        ...msg,
+                        content: finalText,
+                        toolCalls: toolCalls.length > 0 ? toolCalls : msg.toolCalls,
+                      }
+                    : msg
+                )
+              );
+              
               if (toolCalls.length > 0) {
+                setIsExecutingTool(true);
+                onToolExecutionStart?.();
                 onToolCalls?.(toolCalls);
+              } else {
+                setIsExecutingTool(false);
+                onToolExecutionEnd?.();
+                resetStreamingState();
               }
             },
+            
             onError: (error) => {
+              setIsExecutingTool(false);
+              onToolExecutionEnd?.();
               resetStreamingState();
               onError?.(getUserFriendlyError(error));
             },
           }
         );
       } catch (error) {
+        setIsExecutingTool(false);
+        onToolExecutionEnd?.();
         resetStreamingState();
         if (error instanceof Error && error.name !== 'AbortError') {
           onError?.(getUserFriendlyError(error));
         }
       }
     },
-    [isStreaming, onToolCalls, onError, formatMessagesForBackend, createAssistantMessage, resetStreamingState]
+    [onToolCalls, onError, formatMessagesForBackend, resetStreamingState]
   );
 
   const handleKeyPress = useCallback(
@@ -214,7 +338,8 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
     setInput,
     isStreaming,
     streamingText,
-    streamingThinking,
+    streamingToolCalls,
+    isExecutingTool,
     sendMessage,
     sendToolResults,
     cancelRequest,
@@ -222,4 +347,3 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
     messagesEndRef,
   };
 }
-

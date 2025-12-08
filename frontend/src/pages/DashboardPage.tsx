@@ -27,7 +27,7 @@ export const DashboardPage: React.FC = () => {
   const handleToolCalls = useCallback(
     async (toolCalls: ToolCall[]) => {
       setToolError(null);
-      setIsExecutingTool(true);
+      // isExecutingTool will be set by ChatInterface via onExecutingToolChange
       
       // Track start time to ensure minimum display duration
       const startTime = Date.now();
@@ -99,7 +99,9 @@ export const DashboardPage: React.FC = () => {
           await sendToolResultsRef.current(errorResults);
         }
       } finally {
-        setIsExecutingTool(false);
+        // Tool execution in DashboardPage is complete
+        // Note: isExecutingTool will be reset by useChat hook when follow-up stream completes
+        // We keep it true here so loading continues during follow-up response
       }
     },
     [sorting, columnFilters]
@@ -138,6 +140,9 @@ export const DashboardPage: React.FC = () => {
             onToolCalls={handleToolCalls}
             onToolResultsReady={(sendToolResults) => {
               sendToolResultsRef.current = sendToolResults;
+            }}
+            onExecutingToolChange={(isExecuting) => {
+              setIsExecutingTool(isExecuting);
             }}
           />
         </div>
