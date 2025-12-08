@@ -1,4 +1,5 @@
 import React from 'react';
+import ReactMarkdown from 'react-markdown';
 import type { ChatMessage as ChatMessageType, ToolCall } from '../types';
 
 interface ChatMessageProps {
@@ -23,7 +24,9 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, showLoading =
     <div className={`message message-${message.role}`} role="article" aria-label={`${message.role} message`}>
       <div className="message-role" aria-hidden="true">{message.role}</div>
       {message.content && message.content.trim() && (
-        <div className="message-content">{message.content}</div>
+        <div className="message-content">
+          <ReactMarkdown>{message.content}</ReactMarkdown>
+        </div>
       )}
       {message.toolCalls && message.toolCalls.length > 0 && (
         <div className="tool-calls" role="list" aria-label="Tool calls">
