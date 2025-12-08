@@ -1,3 +1,11 @@
+# Cloudflare Worker configuration
+# Update the 'name' field to match your Cloudflare Worker name
+# This will be used as: https://<name>.<your-subdomain>.workers.dev
 name = "quillbackend"
 main = "src/index.ts"
 compatibility_date = "2024-12-06"
+
+# Environment variables (non-sensitive)
+# These are deployed with the Worker
+[vars]
+AI_PROVIDER = "claude"
