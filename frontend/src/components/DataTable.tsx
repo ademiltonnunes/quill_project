@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -32,33 +32,91 @@ export const DataTable: React.FC<DataTableProps> = ({
   onColumnFiltersChange,
   isExecutingTool = false,
 }) => {
-  const getResponsivePageSize = (): number => {
-    if (typeof window === 'undefined') return DEFAULT_PAGE_SIZE;
-    const width = window.innerWidth;
-    if (width <= 480) return 5; // Very small screens
-    if (width <= 768) return 7; // Small screens/tablets
-    return DEFAULT_PAGE_SIZE; // Desktop
-  };
+  const containerRef = useRef<HTMLDivElement>(null);
+  const tableContainerRef = useRef<HTMLDivElement>(null);
+  const tableRef = useRef<HTMLTableElement>(null);
+
+  const calculatePageSize = useCallback((): number => {
+    if (typeof window === 'undefined' || !containerRef.current || !tableRef.current) {
+      return DEFAULT_PAGE_SIZE;
+    }
+
+    const container = containerRef.current;
+    const table = tableRef.current;
+    const firstRow = table.querySelector('tbody tr');
+    if (!firstRow) return DEFAULT_PAGE_SIZE;
+
+    const containerHeight = container.clientHeight;
+    const paginationElement = container.querySelector('.pagination') as HTMLElement;
+    const paginationHeight = paginationElement ? paginationElement.offsetHeight : 60;
+    const headerRow = table.querySelector('thead tr');
+    if (!headerRow) return DEFAULT_PAGE_SIZE;
+    const headerHeight = (headerRow as HTMLElement).offsetHeight;
+    
+    const buffer = 2;
+    const availableHeight = containerHeight - headerHeight - paginationHeight - buffer;
+    const rowHeight = (firstRow as HTMLElement).offsetHeight;
+    if (rowHeight === 0) return DEFAULT_PAGE_SIZE;
+    
+    const rowsThatFit = Math.floor(availableHeight / rowHeight);
+    const safeRowsThatFit = Math.max(1, rowsThatFit - 1);
+    const minPageSize = 3;
+    const maxPageSize = 100;
+    
+    return Math.max(minPageSize, Math.min(maxPageSize, safeRowsThatFit));
+  }, []);
 
   const [pagination, setPagination] = useState({
     pageIndex: 0,
-    pageSize: getResponsivePageSize(),
+    pageSize: DEFAULT_PAGE_SIZE,
   });
 
-  // Update page size on window resize
   useEffect(() => {
-    const handleResize = () => {
-      setPagination((prev) => ({
-        ...prev,
-        pageSize: getResponsivePageSize(),
-        pageIndex: 0,
-      }));
+    const updatePageSize = () => {
+      if (!tableRef.current || !tableContainerRef.current) return;
+      const rows = tableRef.current.querySelectorAll('tbody tr');
+      if (rows.length === 0) return;
+      
+      const newPageSize = calculatePageSize();
+      setPagination((prev) => {
+        if (prev.pageSize !== newPageSize) {
+          return {
+            ...prev,
+            pageSize: newPageSize,
+          };
+        }
+        return prev;
+      });
+      
+      requestAnimationFrame(() => {
+        if (tableRef.current && tableContainerRef.current) {
+          const tableHeight = tableRef.current.offsetHeight;
+          tableContainerRef.current.style.height = `${tableHeight}px`;
+        }
+      });
     };
 
-    window.addEventListener('resize', handleResize);
-    handleResize();
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+    const container = containerRef.current;
+    if (!container) return;
+
+    const resizeObserver = new ResizeObserver(() => {
+      if (tableContainerRef.current) {
+        tableContainerRef.current.style.height = '';
+      }
+      setTimeout(updatePageSize, 50);
+    });
+
+    resizeObserver.observe(container);
+    window.addEventListener('resize', updatePageSize);
+
+    const timeoutId = setTimeout(updatePageSize, 150);
+
+    return () => {
+      clearTimeout(timeoutId);
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', updatePageSize);
+    };
+  }, [calculatePageSize, data.length, pagination.pageIndex]);
 
   const columns = useMemo<ColumnDef<TableRow>[]>(
     () => [
@@ -124,15 +182,15 @@ export const DataTable: React.FC<DataTableProps> = ({
   });
 
   return (
-    <div className="data-table-container">
-      <div className="table-container" style={{ position: 'relative' }}>
+    <div className="data-table-container" ref={containerRef}>
+      <div className="table-container" ref={tableContainerRef} style={{ position: 'relative' }}>
         {isExecutingTool && (
           <div className="tool-execution-overlay" role="status" aria-live="polite">
             <div className="tool-execution-spinner"></div>
             <span className="tool-execution-text">Executing tool calls...</span>
           </div>
         )}
-        <table className="data-table">
+        <table className="data-table" ref={tableRef}>
           <thead>
             {table.getHeaderGroups().map((headerGroup) => (
               <tr key={headerGroup.id} className="table-header-row">
