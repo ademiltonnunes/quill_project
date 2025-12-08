@@ -1,271 +1,154 @@
-# Quill - AI-Powered Table Tool Calling System
+# Quill Take Home Project
 
-A take-home assessment project that combines AI chat with TanStack Table functionality. Users can interact with a data table through natural language commands, with the AI model (Claude) executing table operations via tool calling.
+AI-powered table management system that enables natural language interaction with data tables through tool calling. Users can filter, sort, add, and remove table rows using conversational commands processed by Claude AI.
 
-## 🎯 Project Overview
+## Overview
 
-This project implements a chat interface that allows users to manipulate a data table using natural language. The AI interprets user commands and executes appropriate table operations (filtering, sorting, adding/removing rows) through a tool calling system.
+This project consists of two main components:
 
-### Key Features
+- **Backend**: Cloudflare Worker that proxies requests to Claude AI API with tool calling support
+- **Frontend**: React application with TanStack Table integration and chat interface
 
-- **AI-Powered Chat Interface**: Natural language interaction with Claude AI
-- **TanStack Table Integration**: Full-featured table with filtering, sorting, and pagination
-- **Tool Calling System**: AI executes table operations via structured tool calls
-- **Streaming Responses**: Real-time streaming of AI responses
-- **Cloudflare Workers Backend**: Serverless infrastructure for AI API proxying
-- **Multiple Filter Support**: Combine multiple filters for complex queries
+For detailed architecture and implementation details, see:
+- [Backend Documentation](./backend/README.md)
+- [Frontend Documentation](./frontend/README.md)
 
-## 🏗️ Architecture
-
-### Backend (Cloudflare Worker)
-
-- **Location**: `backend/`
-- **Technology**: TypeScript, Cloudflare Workers
-- **Main Entry**: `src/index.ts`
-- **Key Components**:
-  - `handlers/chat.handler.ts`: Handles chat requests with tool calling
-  - `services/claude.service.ts`: Claude API integration
-  - `services/ai-provider.factory.ts`: Provider factory pattern
-  - `utils/stream.ts`: Streaming response handling
-  - `utils/validation.ts`: Request validation
-
-### Frontend (React + Vite)
-
-- **Location**: `frontend/`
-- **Technology**: React 19, TypeScript, TanStack Table, Vite
-- **Main Entry**: `src/main.tsx`
-- **Key Components**:
-  - `pages/DashboardPage.tsx`: Main dashboard with table and chat
-  - `components/DataTable.tsx`: TanStack Table implementation
-  - `components/ChatInterface.tsx`: Chat UI component
-  - `hooks/useChat.ts`: Chat state management hook
-  - `utils/toolExecutor.ts`: Tool execution logic
-  - `utils/toolDefinitions.ts`: Tool schema definitions
-
-## 🚀 Getting Started
-
-### Prerequisites
+## Prerequisites
 
 - Node.js 18+ and npm
 - Cloudflare account (for deploying the worker)
 - Claude API key from Anthropic
 
-### Environment Variables
+## Setup
 
-#### Backend (Cloudflare Worker)
+### Backend Setup
 
-Create a `.dev.vars` file in the `backend/` directory:
-
+1. Navigate to the backend directory:
 ```bash
-CLAUDE_API_KEY=your_claude_api_key_here
+cd backend
 ```
 
-Or set it via Wrangler:
-
+2. Install dependencies:
 ```bash
-wrangler secret put CLAUDE_API_KEY
+npm install
 ```
 
-#### Frontend
+3. Create a `.dev.vars` file (copy from `.dev.vars.example`):
+```bash
+cp .dev.vars.example .dev.vars
+```
 
-Create a `.env` file in the `frontend/` directory:
+4. Add your Claude API key to `.dev.vars`:
+```
+ANTHROPIC_API_KEY=your_claude_api_key_here
+AI_PROVIDER=claude
+```
 
+### Frontend Setup
+
+1. Navigate to the frontend directory:
+```bash
+cd frontend
+```
+
+2. Install dependencies:
+```bash
+npm install
+```
+
+3. Create a `.env` file:
 ```bash
 VITE_API_BASE_URL=http://localhost:8787
 ```
 
-For production, set this to your deployed Cloudflare Worker URL.
+## Running Locally
 
-### Installation
+### Step 1: Start the Backend Worker
 
-1. **Clone the repository** (if applicable)
-
-2. **Install backend dependencies**:
-```bash
-cd backend
-npm install
-```
-
-3. **Install frontend dependencies**:
-```bash
-cd frontend
-npm install
-```
-
-### Running Locally
-
-1. **Start the Cloudflare Worker** (in `backend/` directory):
+In the `backend` directory:
 ```bash
 npm run dev
 ```
 
 The worker will start on `http://localhost:8787` by default.
 
-2. **Start the frontend** (in `frontend/` directory):
+### Step 2: Start the Frontend
+
+In the `frontend` directory:
 ```bash
 npm run dev
 ```
 
 The frontend will start on `http://localhost:5173` (or another port if 5173 is taken).
 
-3. **Open your browser** and navigate to the frontend URL.
+### Step 3: Open the Application
 
-### Deployment
+Navigate to the frontend URL in your browser (typically `http://localhost:5173`).
 
-#### Backend (Cloudflare Worker)
+## Deployment
 
+### Deploy Backend to Cloudflare Workers
+
+1. Navigate to the backend directory:
 ```bash
 cd backend
+```
+
+2. Set the Claude API key as a secret in Cloudflare:
+```bash
+wrangler secret put ANTHROPIC_API_KEY
+```
+Enter your API key when prompted.
+
+3. Deploy the worker:
+```bash
 npm run deploy
 ```
 
-Make sure to set the `CLAUDE_API_KEY` secret in Cloudflare:
+4. Note the deployed worker URL (e.g., `https://quillbackend.your-subdomain.workers.dev`)
 
-```bash
-wrangler secret put CLAUDE_API_KEY
-```
+### Deploy Frontend to Cloudflare Pages
 
-#### Frontend
-
+1. Navigate to the frontend directory:
 ```bash
 cd frontend
+```
+
+2. Build the production bundle:
+```bash
 npm run build
 ```
 
-Deploy the `dist/` folder to your preferred hosting service (Vercel, Netlify, Cloudflare Pages, etc.).
+3. Deploy to Cloudflare Pages:
+   - Go to Cloudflare Dashboard > Pages
+   - Create a new project
+   - Connect your repository or upload the `dist` folder
+   - Set the build output directory to `dist`
+   - Add environment variable: `VITE_API_BASE_URL` = your deployed worker URL
 
-## 📖 Usage
 
-### Table Operations via Chat
+## Usage
 
-Users can interact with the table using natural language commands:
+Users interact with the table through natural language commands in the chat interface:
 
-- **Filtering**: 
-  - "Show all items with amount greater than 10"
-  - "Filter by status active"
-  - "Get items where category contains sport"
-  
-- **Sorting**:
-  - "Sort by amount descending"
-  - "Sort the table by date"
-  
-- **Adding Rows**:
-  - "Add a new row with name 'Test Item', amount 50, status 'active', date '2024-01-15', category 'Electronics'"
-  
-- **Removing Rows**:
-  - "Delete row with id row-123"
-  
-- **Clearing**:
-  - "Clear all filters"
-  - "Remove sorting"
+- **Filtering**: "Show all items with amount greater than 10"
+- **Sorting**: "Sort by amount descending"
+- **Adding rows**: "Add a new row with name 'Test Item', amount 50, status 'active', date '2024-01-15', category 'Electronics'"
+- **Removing rows**: "Delete row with name 'Test Item' "
+- **Clearing**: "Clear all filters" or "Remove sorting"
 
-### Supported Filter Operators
-
-- Numeric: `>`, `<`, `>=`, `<=`, `==`, `!=`
-- Text: `==`, `!=`, `contains`, `startsWith`, `endsWith`
-- All text comparisons are case-insensitive
-
-## 🛠️ Technical Decisions
-
-### Why Claude over OpenAI?
-
-- **Lower Hallucination Rate**: Claude tends to be more accurate with tool calling
-- **Better Structured Output**: More reliable JSON parsing for tool arguments
-- **Streaming Support**: Native streaming with thinking tags support
-
-### Architecture Choices
-
-1. **Cloudflare Workers**: 
-   - Serverless, edge computing
-   - Low latency globally
-   - Easy deployment and scaling
-
-2. **TanStack Table**:
-   - Headless, flexible table library
-   - Built-in filtering, sorting, pagination
-   - Custom filter functions for complex operations
-
-3. **Tool Calling Pattern**:
-   - Structured approach to AI actions
-   - Type-safe tool definitions
-   - Clear separation between AI reasoning and execution
-
-4. **Streaming**:
-   - Real-time user feedback
-   - Better UX with progressive rendering
-   - Thinking tags for transparency
-
-## 📁 Project Structure
+## Project Structure
 
 ```
 Quill/
-├── backend/
-│   ├── src/
-│   │   ├── config/          # Configuration constants
-│   │   ├── handlers/         # Request handlers
-│   │   ├── interfaces/       # Type definitions
-│   │   ├── services/         # AI provider services
-│   │   ├── types/            # TypeScript types
-│   │   ├── utils/            # Utility functions
-│   │   └── index.ts          # Worker entry point
-│   ├── package.json
-│   ├── tsconfig.json
-│   └── wrangler.toml         # Cloudflare Worker config
-│
-├── frontend/
-│   ├── src/
-│   │   ├── components/       # React components
-│   │   ├── config/           # Frontend constants
-│   │   ├── data/             # Sample data
-│   │   ├── hooks/            # React hooks
-│   │   ├── pages/            # Page components
-│   │   ├── services/         # API services
-│   │   ├── types/            # TypeScript types
-│   │   ├── utils/            # Utility functions
-│   │   ├── App.tsx
-│   │   └── main.tsx
-│   ├── package.json
-│   ├── tsconfig.json
-│   └── vite.config.ts
-│
-└── README.md
+├── backend/          # Cloudflare Worker backend
+│   └── README.md     # Backend documentation
+├── frontend/         # React frontend application
+│   └── README.md     # Frontend documentation
+└── README.md         # This file
 ```
 
-## 🧪 Testing
+## Technology Stack
 
-### Manual Testing
-
-1. Test filtering with various operators
-2. Test sorting in both directions
-3. Test adding rows with all required fields
-4. Test deleting rows
-5. Test multiple filters combined
-6. Test streaming responses
-7. Test error handling (invalid commands, missing fields)
-
-## 🐛 Known Issues / Future Improvements
-
-- [ ] Add unit tests for tool execution logic
-- [ ] Add integration tests for chat flow
-- [ ] Support for more complex filter combinations (OR logic)
-- [ ] Undo/redo functionality for table operations
-- [ ] Export table data functionality
-- [ ] Better error messages for invalid tool calls
-- [ ] Support for date range filtering
-
-## 📝 Evaluation Criteria Alignment
-
-1. **Decision Making**: Documented in this README and code comments
-2. **Accuracy**: Claude model with detailed system prompts and validation
-3. **Streaming**: Full SSE streaming implementation with thinking tags
-4. **Table Functionality**: Filtering, sorting, adding/removing rows all supported
-5. **Open Source Integration**: TanStack Table, React, Cloudflare Workers
-6. **UX**: Smooth streaming, error handling, loading states, responsive design
-
-## 📄 License
-
-This is a take-home assessment project.
-
-## 👤 Author
-
-Built as part of a take-home assessment for Quill.
+- **Backend**: TypeScript, Cloudflare Workers, Claude AI API
+- **Frontend**: React 19, TypeScript, TanStack Table, Vite
