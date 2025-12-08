@@ -10,6 +10,8 @@ export interface TableRow {
 export interface ColumnFilterValue {
   operator: string;
   value: unknown;
+  minValue?: unknown;
+  maxValue?: unknown;
 }
 
 export interface TableState {

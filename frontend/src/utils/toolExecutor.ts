@@ -78,17 +78,115 @@ export function executeToolCall(
           return createErrorResult('Value parameter is required for filtering', currentState);
         }
 
-        // Add or update filter for this column (support multiple filters on different columns)
-        const existingFilters = currentState.columnFilters.filter(
+        // Check if there's an existing filter for this column
+        const existingFilter = currentState.columnFilters.find(
+          (f) => f.id === columnValidation.column
+        );
+        
+        const existingFilterValue = existingFilter?.value as ColumnFilterValue | undefined;
+        
+        // Check if we can combine with existing filter to form a range
+        const isDateColumn = columnValidation.column === 'date';
+        const isDateValue = isDateColumn && isDateValueCheck(value);
+        
+        let newFilterValue: ColumnFilterValue;
+        
+        if (existingFilterValue && isDateColumn && isDateValue) {
+          // Try to combine into a range filter
+          const existingOp = existingFilterValue.operator;
+          const existingVal = existingFilterValue.value;
+          
+          // Check if we're forming a range (one >= and one <=)
+          if (
+            (existingOp === '>=' && operator === '<=') ||
+            (existingOp === '<=' && operator === '>=')
+          ) {
+            // Form a range filter - ensure min <= max
+            let minValue: unknown;
+            let maxValue: unknown;
+            
+            if (existingOp === '>=' && operator === '<=') {
+              minValue = existingVal;
+              maxValue = value;
+            } else {
+              // existingOp === '<=' && operator === '>='
+              minValue = value;
+              maxValue = existingVal;
+            }
+            
+            // Validate that min <= max
+            const minDate = new Date(String(minValue));
+            const maxDate = new Date(String(maxValue));
+            if (!isNaN(minDate.getTime()) && !isNaN(maxDate.getTime()) && minDate <= maxDate) {
+              newFilterValue = {
+                operator: 'range',
+                value: minValue, // Keep for backward compatibility
+                minValue,
+                maxValue,
+              };
+            } else {
+              // Invalid range, replace with new filter
+              newFilterValue = { operator, value };
+            }
+          } else if (existingOp === 'range') {
+            // Update existing range filter
+            if (operator === '>=') {
+              const newMin = new Date(String(value));
+              const currentMax = existingFilterValue.maxValue 
+                ? new Date(String(existingFilterValue.maxValue))
+                : null;
+              if (!isNaN(newMin.getTime()) && (!currentMax || newMin <= currentMax)) {
+                newFilterValue = {
+                  ...existingFilterValue,
+                  minValue: value,
+                  value: value, // Update main value
+                };
+              } else {
+                newFilterValue = { operator, value };
+              }
+            } else if (operator === '<=') {
+              const newMax = new Date(String(value));
+              const currentMin = existingFilterValue.minValue 
+                ? new Date(String(existingFilterValue.minValue))
+                : null;
+              if (!isNaN(newMax.getTime()) && (!currentMin || currentMin <= newMax)) {
+                newFilterValue = {
+                  ...existingFilterValue,
+                  maxValue: value,
+                  value: value, // Update main value
+                };
+              } else {
+                newFilterValue = { operator, value };
+              }
+            } else {
+              // Replace with new filter
+              newFilterValue = { operator, value };
+            }
+          } else {
+            // Replace existing filter
+            newFilterValue = { operator, value };
+          }
+        } else {
+          // No existing filter or not a date range, just set the new filter
+          newFilterValue = { operator, value };
+        }
+
+        // Add or update filter for this column
+        const otherFilters = currentState.columnFilters.filter(
           (f) => f.id !== columnValidation.column
         );
         newState.columnFilters = [
-          ...existingFilters,
-          { id: columnValidation.column, value: { operator, value } },
+          ...otherFilters,
+          { id: columnValidation.column, value: newFilterValue },
         ];
+        
+        const message = newFilterValue.operator === 'range'
+          ? `Filtered by ${columnValidation.column} from ${newFilterValue.minValue} to ${newFilterValue.maxValue}`
+          : `Filtered by ${columnValidation.column} ${operator} ${value}`;
+        
         return {
           success: true,
-          message: `Filtered by ${columnValidation.column} ${operator} ${value}`,
+          message,
           newState,
         };
       }
@@ -269,6 +367,12 @@ function compareStrings(a: string, b: string, operator: '==' | '!='): boolean {
   return operator === '==' ? aLower === bLower : aLower !== bLower;
 }
 
+function isDateValueCheck(value: unknown): boolean {
+  if (typeof value !== 'string') return false;
+  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+  return dateRegex.test(value);
+}
+
 function isDateValue(value: unknown): boolean {
   if (typeof value !== 'string') return false;
   const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
@@ -310,12 +414,25 @@ export function customFilterFn(
     return true;
   }
 
-  const { operator, value } = filterValue;
+  const { operator, value, minValue, maxValue } = filterValue;
   const cellValue = row.getValue(columnId);
   
   // Check if this is a date column comparison
   const isDateColumn = columnId === 'date';
   const isDateComparison = isDateColumn && isDateValue(value);
+  
+  // Handle range filters (for date ranges like >= min AND <= max)
+  if (operator === 'range' && minValue !== undefined && maxValue !== undefined && isDateColumn) {
+    const cellDate = new Date(String(cellValue));
+    const minDate = new Date(String(minValue));
+    const maxDate = new Date(String(maxValue));
+    
+    if (isNaN(cellDate.getTime()) || isNaN(minDate.getTime()) || isNaN(maxDate.getTime())) {
+      return false;
+    }
+    
+    return cellDate >= minDate && cellDate <= maxDate;
+  }
   
   if (isDateComparison) {
     return compareDates(String(cellValue), String(value), operator);
