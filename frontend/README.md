@@ -65,7 +65,25 @@ sequenceDiagram
     Frontend->>Frontend: 12. Display Final Message
 ```
 
+## Tool Calling Flow
+
+1. User sends message via chat input
+2. Message is sent to backend with tool definitions
+3. Backend forwards to Claude with tools
+4. Claude responds with tool calls (streaming)
+5. Frontend parses tool calls from stream
+6. Tools are executed locally (table operations)
+7. Tool results are sent back to backend
+8. Backend forwards tool results to Claude
+9. Claude provides final text response
+10. Response is displayed to user
+
+This cycle continues for each user message, allowing the AI to use tools as needed to fulfill user requests.
+
 ## Key Components
+
+<details>
+<summary>Click to expand component details</summary>
 
 ### Pages
 
@@ -114,7 +132,12 @@ Input component with:
 - Keyboard shortcuts (Enter to send)
 - Character limits
 
+</details>
+
 ## TanStack Table Integration
+
+<details>
+<summary>Click to expand TanStack Table details</summary>
 
 TanStack Table is used for all table functionality. The implementation includes:
 
@@ -154,6 +177,8 @@ Table state is managed at the page level:
 
 State is updated through tool execution, not directly by user interaction with the table UI.
 
+</details>
+
 ## Hooks
 
 ### useChat (`src/hooks/useChat.ts`)
@@ -176,6 +201,9 @@ The hook handles the complete tool calling cycle:
 
 ## Services
 
+<details>
+<summary>Click to expand Services details</summary>
+
 ### Chat Service (`src/services/chat.service.ts`)
 
 Handles HTTP communication with the backend:
@@ -186,7 +214,12 @@ Handles HTTP communication with the backend:
 - Manages request cancellation
 - Handles errors
 
+</details>
+
 ## Utilities
+
+<details>
+<summary>Click to expand Utilities details</summary>
 
 ### Tool Executor (`src/utils/toolExecutor.ts`)
 
@@ -221,7 +254,12 @@ Parses SSE stream from backend:
 - Accumulates complete tool calls
 - Handles stream completion
 
+</details>
+
 ## State Management
+
+<details>
+<summary>Click to expand State Management details</summary>
 
 The application uses React state management:
 
@@ -234,6 +272,8 @@ State updates flow:
 2. API call → Backend
 3. Response → State update
 4. Re-render → UI update
+
+</details>
 
 ## Error Handling
 
@@ -317,20 +357,3 @@ interface ChatMessage {
   toolCalls?: ToolCall[];
   toolCallId?: string;
 }
-```
-
-## Tool Calling Flow
-
-1. User sends message via chat input
-2. Message is sent to backend with tool definitions
-3. Backend forwards to Claude with tools
-4. Claude responds with tool calls (streaming)
-5. Frontend parses tool calls from stream
-6. Tools are executed locally (table operations)
-7. Tool results are sent back to backend
-8. Backend forwards tool results to Claude
-9. Claude provides final text response
-10. Response is displayed to user
-
-This cycle continues for each user message, allowing the AI to use tools as needed to fulfill user requests.
-
