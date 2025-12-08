@@ -3,7 +3,7 @@ import type { ToolDefinition } from '../types';
 export const tableToolDefinitions: ToolDefinition[] = [
   {
     name: 'filterTable',
-    description: 'Filter the table rows based on column criteria. Supports operators: >, <, >=, <=, ==, !=, contains, startsWith, endsWith',
+    description: 'Filter the table rows based on column criteria. Supports operators: >, <, >=, <=, ==, !=, contains, startsWith, endsWith. All string comparisons are case-insensitive (e.g., "Sport", "sport", and "SPORT" will match the same). IMPORTANT: Use "contains" operator for partial text matches (e.g., user says "sport" to find "Sports" category). Use "==" only for exact matches when user specifies an exact value.',
     input_schema: {
       type: 'object',
       properties: {

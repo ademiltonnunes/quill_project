@@ -7,16 +7,36 @@ interface ChatMessageProps {
 }
 
 export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
+  if (message.role === 'tool') {
+    return (
+      <div className={`message message-${message.role}`} role="article" aria-label={`${message.role} message`}>
+        <div className="message-role" aria-hidden="true">tool result</div>
+        <div className="message-content tool-result">
+          <span className="tool-result-icon">✓</span>
+          {message.content}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={`message message-${message.role}`} role="article" aria-label={`${message.role} message`}>
       <div className="message-role" aria-hidden="true">{message.role}</div>
-      {message.thinking && <ThinkingMessage thinking={message.thinking} />}
+      {message.thinking && message.thinking.trim() && (
+        <ThinkingMessage 
+          thinking={message.thinking} 
+          isStreaming={false}
+          componentId={message.id}
+        />
+      )}
       <div className="message-content">{message.content}</div>
       {message.toolCalls && message.toolCalls.length > 0 && (
         <div className="tool-calls" role="list" aria-label="Tool calls">
+          <div className="tool-calls-header">Executing tools:</div>
           {message.toolCalls.map((tc: ToolCall) => (
             <div key={tc.id} className="tool-call" role="listitem">
-              {tc.function.name}({tc.function.arguments})
+              <span className="tool-call-name">{tc.function.name}</span>
+              <span className="tool-call-args">({tc.function.arguments})</span>
             </div>
           ))}
         </div>

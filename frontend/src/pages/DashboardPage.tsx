@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { DataTable } from '../components/DataTable';
 import { ChatInterface } from '../components/ChatInterface';
 import { TitleBar } from '../components/TitleBar';
@@ -16,6 +16,7 @@ export const DashboardPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [toolError, setToolError] = useState<string | null>(null);
   const [isExecutingTool, setIsExecutingTool] = useState(false);
+  const sendToolResultsRef = useRef<((toolResults: Array<{ toolCallId: string; result: string; success: boolean }>) => Promise<void>) | null>(null);
 
   useEffect(() => {
     const data = generateSampleData(75);
@@ -24,11 +25,14 @@ export const DashboardPage: React.FC = () => {
   }, []);
 
   const handleToolCalls = useCallback(
-    (toolCalls: ToolCall[]) => {
+    async (toolCalls: ToolCall[]) => {
       setIsExecutingTool(true);
       setToolError(null);
 
       try {
+        const toolResults: Array<{ toolCallId: string; result: string; success: boolean }> = [];
+        const errors: string[] = [];
+
         setTableData((prevData) => {
           let currentState: TableState = {
             data: prevData,
@@ -37,28 +41,50 @@ export const DashboardPage: React.FC = () => {
             pagination: { pageIndex: 0, pageSize: 10 },
           };
 
-          const errors: string[] = [];
-
           for (const toolCall of toolCalls) {
             const result = executeToolCall(toolCall, currentState);
             if (result.success) {
               currentState = result.newState;
+              toolResults.push({
+                toolCallId: toolCall.id,
+                result: result.message || `Successfully executed ${toolCall.function.name}`,
+                success: true,
+              });
             } else {
-              errors.push(result.message || `Failed to execute ${toolCall.function.name}`);
+              const errorMsg = result.message || `Failed to execute ${toolCall.function.name}`;
+              errors.push(errorMsg);
+              toolResults.push({
+                toolCallId: toolCall.id,
+                result: `Error: ${errorMsg}`,
+                success: false,
+              });
             }
-          }
-
-          if (errors.length > 0) {
-            setToolError(errors.join('. '));
           }
 
           setSorting(currentState.sorting);
           setColumnFilters(currentState.columnFilters);
           return currentState.data;
         });
+
+        if (errors.length > 0) {
+          setToolError(errors.join('. '));
+        }
+
+        if (sendToolResultsRef.current && toolResults.length > 0) {
+          await sendToolResultsRef.current(toolResults);
+        }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to execute tool calls';
         setToolError(errorMessage);
+
+        if (sendToolResultsRef.current && toolCalls.length > 0) {
+          const errorResults = toolCalls.map((tc) => ({
+            toolCallId: tc.id,
+            result: `Error: ${errorMessage}`,
+            success: false,
+          }));
+          await sendToolResultsRef.current(errorResults);
+        }
       } finally {
         setIsExecutingTool(false);
       }
@@ -99,7 +125,12 @@ export const DashboardPage: React.FC = () => {
           )}
         </div>
         <div className="chat-interface-section" aria-label="Chat interface">
-          <ChatInterface onToolCalls={handleToolCalls} />
+          <ChatInterface 
+            onToolCalls={handleToolCalls}
+            onToolResultsReady={(sendToolResults) => {
+              sendToolResultsRef.current = sendToolResults;
+            }}
+          />
         </div>
       </div>
     </div>

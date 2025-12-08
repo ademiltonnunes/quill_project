@@ -18,104 +18,94 @@ export interface ToolExecutionResult {
   newState: TableState;
 }
 
+function validateColumn(column: unknown): { success: false } | { success: true; column: ValidColumn } {
+  if (!column || typeof column !== 'string') {
+    return { success: false };
+  }
+  const normalized = normalizeColumn(column);
+  if (!normalized) {
+    return { success: false };
+  }
+  return { success: true, column: normalized };
+}
+
+function parseToolArgs(argsStr: string): { success: true; args: Record<string, unknown> } | { success: false; message: string } {
+  try {
+    const args = JSON.parse(argsStr);
+    return { success: true, args };
+  } catch (parseError) {
+    return {
+      success: false,
+      message: `Failed to parse tool arguments: ${parseError instanceof Error ? parseError.message : 'Invalid JSON'}`,
+    };
+  }
+}
+
+function createErrorResult(message: string, currentState: TableState): ToolExecutionResult {
+  return { success: false, message, newState: currentState };
+}
+
 export function executeToolCall(
   toolCall: ToolCall,
   currentState: TableState
 ): ToolExecutionResult {
   try {
-    const { name, arguments: argsStr } = toolCall.function;
-    let args: Record<string, unknown>;
-    try {
-      args = JSON.parse(argsStr);
-    } catch (parseError) {
-      return {
-        success: false,
-        message: `Failed to parse tool arguments: ${parseError instanceof Error ? parseError.message : 'Invalid JSON'}`,
-        newState: currentState,
-      };
+    const parsed = parseToolArgs(toolCall.function.arguments);
+    if (!parsed.success) {
+      return createErrorResult(parsed.message, currentState);
     }
+    const args = parsed.args;
+    const newState: TableState = { ...currentState };
 
-    let newState: TableState = { ...currentState };
-
-    switch (name) {
+    switch (toolCall.function.name) {
       case 'filterTable': {
         const { column, operator, value } = args;
+        const columnValidation = validateColumn(column);
+        if (!columnValidation.success) {
+          return createErrorResult(
+            !column || typeof column !== 'string'
+              ? 'Column parameter is required and must be a string'
+              : `Invalid column "${column}". Valid columns are: ${VALID_COLUMNS.join(', ')}`,
+            currentState
+          );
+        }
 
-        if (!column || typeof column !== 'string') {
-          return {
-            success: false,
-            message: 'Column parameter is required and must be a string',
-            newState: currentState,
-          };
-        }
-        
-        const normalizedColumn = normalizeColumn(column);
-        if (!normalizedColumn) {
-          return {
-            success: false,
-            message: `Invalid column "${column}". Valid columns are: ${VALID_COLUMNS.join(', ')}`,
-            newState: currentState,
-          };
-        }
-        
         if (!operator || typeof operator !== 'string') {
-          return {
-            success: false,
-            message: 'Operator parameter is required and must be a string',
-            newState: currentState,
-          };
-        }
-        
-        if (value === undefined || value === null) {
-          return {
-            success: false,
-            message: 'Value parameter is required for filtering',
-            newState: currentState,
-          };
+          return createErrorResult('Operator parameter is required and must be a string', currentState);
         }
 
-        newState.columnFilters = [
-          { id: normalizedColumn, value: { operator, value } },
-        ];
+        if (value === undefined || value === null) {
+          return createErrorResult('Value parameter is required for filtering', currentState);
+        }
+
+        newState.columnFilters = [{ id: columnValidation.column, value: { operator, value } }];
         return {
           success: true,
-          message: `Filtered by ${normalizedColumn} ${operator} ${value}`,
+          message: `Filtered by ${columnValidation.column} ${operator} ${value}`,
           newState,
         };
       }
 
       case 'sortTable': {
         const { column, direction } = args;
+        const columnValidation = validateColumn(column);
+        if (!columnValidation.success) {
+          return createErrorResult(
+            !column || typeof column !== 'string'
+              ? 'Column parameter is required and must be a string'
+              : `Invalid column "${column}". Valid columns are: ${VALID_COLUMNS.join(', ')}`,
+            currentState
+          );
+        }
 
-        if (!column || typeof column !== 'string') {
-          return {
-            success: false,
-            message: 'Column parameter is required and must be a string',
-            newState: currentState,
-          };
-        }
-        
-        const normalizedColumn = normalizeColumn(column);
-        if (!normalizedColumn) {
-          return {
-            success: false,
-            message: `Invalid column "${column}". Valid columns are: ${VALID_COLUMNS.join(', ')}`,
-            newState: currentState,
-          };
-        }
-        
         if (!direction || (direction !== 'asc' && direction !== 'desc')) {
-          return {
-            success: false,
-            message: 'Direction must be "asc" or "desc"',
-            newState: currentState,
-          };
+          return createErrorResult('Direction must be "asc" or "desc"', currentState);
         }
-        
-        newState.sorting = [{ id: normalizedColumn, desc: direction === 'desc' }];
+
+        newState.sorting = [{ id: columnValidation.column, desc: direction === 'desc' }];
         return {
           success: true,
-          message: `Sorted by ${normalizedColumn} (${direction})`,
+          message: `Sorted by ${columnValidation.column} (${direction})`,
           newState,
         };
       }
@@ -181,19 +171,22 @@ export function executeToolCall(
       }
 
       default:
-        return {
-          success: false,
-          message: `Unknown tool: ${name}`,
-          newState: currentState,
-        };
+        return createErrorResult(`Unknown tool: ${toolCall.function.name}`, currentState);
     }
   } catch (error) {
-    return {
-      success: false,
-      message: `Error executing tool: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      newState: currentState,
-    };
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return createErrorResult(`Error executing tool: ${message}`, currentState);
   }
+}
+
+function isNumericValue(value: unknown): boolean {
+  return typeof value === 'number' || (!isNaN(Number(value)) && String(value).trim() !== '');
+}
+
+function compareStrings(a: string, b: string, operator: '==' | '!='): boolean {
+  const aLower = a.toLowerCase();
+  const bLower = b.toLowerCase();
+  return operator === '==' ? aLower === bLower : aLower !== bLower;
 }
 
 export function customFilterFn(
@@ -201,38 +194,38 @@ export function customFilterFn(
   columnId: string,
   filterValue: ColumnFilterValue
 ): boolean {
-  if (!filterValue || !filterValue.operator || filterValue.value === undefined) {
+  if (!filterValue?.operator || filterValue.value === undefined) {
     return true;
   }
 
   const { operator, value } = filterValue;
   const cellValue = row.getValue(columnId);
-  let comparisonValue: string | number = typeof value === 'number' ? value : String(value);
-  if (typeof cellValue === 'number') {
-    comparisonValue = typeof value === 'number' ? value : Number(value);
-  } else if (cellValue instanceof Date || typeof cellValue === 'string') {
-    comparisonValue = String(value);
-  }
+  const isCellNumeric = typeof cellValue === 'number';
+  const isBothNumeric = isCellNumeric || (isNumericValue(cellValue) && isNumericValue(value));
 
   switch (operator) {
     case '>':
-      return Number(cellValue) > Number(comparisonValue);
+      return Number(cellValue) > Number(value);
     case '<':
-      return Number(cellValue) < Number(comparisonValue);
+      return Number(cellValue) < Number(value);
     case '>=':
-      return Number(cellValue) >= Number(comparisonValue);
+      return Number(cellValue) >= Number(value);
     case '<=':
-      return Number(cellValue) <= Number(comparisonValue);
+      return Number(cellValue) <= Number(value);
     case '==':
-      return String(cellValue) === String(comparisonValue);
     case '!=':
-      return String(cellValue) !== String(comparisonValue);
+      if (isBothNumeric) {
+        const numCell = Number(cellValue);
+        const numVal = Number(value);
+        return operator === '==' ? numCell === numVal : numCell !== numVal;
+      }
+      return compareStrings(String(cellValue), String(value), operator);
     case 'contains':
-      return String(cellValue).toLowerCase().includes(String(comparisonValue).toLowerCase());
+      return String(cellValue).toLowerCase().includes(String(value).toLowerCase());
     case 'startsWith':
-      return String(cellValue).toLowerCase().startsWith(String(comparisonValue).toLowerCase());
+      return String(cellValue).toLowerCase().startsWith(String(value).toLowerCase());
     case 'endsWith':
-      return String(cellValue).toLowerCase().endsWith(String(comparisonValue).toLowerCase());
+      return String(cellValue).toLowerCase().endsWith(String(value).toLowerCase());
     default:
       return true;
   }

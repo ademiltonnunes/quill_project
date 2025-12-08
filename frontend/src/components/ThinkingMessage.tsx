@@ -5,67 +5,73 @@ interface ThinkingMessageProps {
   thinking: string;
   isStreaming?: boolean;
   hasReplyStarted?: boolean;
+  componentId?: string;
 }
 
-// Use a global ref to persist expanded state across component instances
 const globalExpandedState = new Map<string, boolean>();
 const globalUserHasInteracted = new Map<string, boolean>();
 
 export const ThinkingMessage: React.FC<ThinkingMessageProps> = ({ 
   thinking, 
   isStreaming = false,
-  hasReplyStarted = false 
+  hasReplyStarted = false,
+  componentId: providedComponentId
 }) => {
-  const componentId = useMemo(() => 'streaming-thinking', []);
-  const [isExpanded, setIsExpanded] = useState(() => globalExpandedState.get(componentId) || false);
+  const componentId = useMemo(() => providedComponentId || 'streaming-thinking', [providedComponentId]);
+  const hasThinkingContent = thinking && thinking.trim().length > 0;
+
+  const getInitialExpandedState = (): boolean => {
+    if (globalExpandedState.has(componentId)) {
+      return globalExpandedState.get(componentId) ?? false;
+    }
+    const initialValue = Boolean(!isStreaming && componentId !== 'streaming-thinking' && hasThinkingContent);
+    globalExpandedState.set(componentId, initialValue);
+    return initialValue;
+  };
+
+  const [isExpanded, setIsExpanded] = useState(getInitialExpandedState);
   const wasStreamingRef = useRef(isStreaming);
   const hasReplyStartedRef = useRef(hasReplyStarted);
   const userHasInteractedRef = useRef(globalUserHasInteracted.get(componentId) || false);
-  const hasThinkingContent = thinking && thinking.trim().length > 0;
 
-  // Handle auto-expand/collapse based on streaming state
   useEffect(() => {
+    if (componentId !== 'streaming-thinking') {
+      return;
+    }
+
     const prevStreaming = wasStreamingRef.current;
     const prevHasReplyStarted = hasReplyStartedRef.current;
     wasStreamingRef.current = isStreaming;
     hasReplyStartedRef.current = hasReplyStarted;
-    
-    // Skip auto-behavior if user has manually interacted
+
     if (userHasInteractedRef.current) {
       return;
     }
-    
-    // Auto-expand when streaming starts and thinking content appears
+
     if (!prevStreaming && isStreaming && hasThinkingContent) {
       setIsExpanded(true);
       globalExpandedState.set(componentId, true);
     }
-    
-    // Auto-expand when thinking content appears during streaming (if not already expanded)
+
     if (isStreaming && hasThinkingContent && !isExpanded && !hasReplyStarted) {
       setIsExpanded(true);
       globalExpandedState.set(componentId, true);
     }
-    
-    // Auto-collapse when thinking stops and reply starts (hasReplyStarted becomes true)
+
     if (isStreaming && hasReplyStarted && !prevHasReplyStarted && hasThinkingContent) {
       setIsExpanded(false);
       globalExpandedState.set(componentId, false);
     }
-    
-    // Auto-collapse when streaming ends (true -> false transition)
+
     if (prevStreaming && !isStreaming) {
       setIsExpanded(false);
       globalExpandedState.set(componentId, false);
-      // Reset interaction flag for next streaming session
       userHasInteractedRef.current = false;
       globalUserHasInteracted.set(componentId, false);
     }
   }, [isStreaming, hasReplyStarted, hasThinkingContent, isExpanded, componentId]);
 
-  // Show thinking message when streaming, even if content is empty
-  // Or when there's thinking content
-  if (!isStreaming && (!thinking || thinking.trim() === '')) {
+  if (!isStreaming && !hasThinkingContent) {
     return null;
   }
 
@@ -74,12 +80,8 @@ export const ThinkingMessage: React.FC<ThinkingMessageProps> = ({
     setIsExpanded((prev) => {
       const newState = !prev;
       globalExpandedState.set(componentId, newState);
-      
-      // Mark that user has manually interacted
-      // This prevents auto-expand/collapse from overriding user preference
       userHasInteractedRef.current = true;
       globalUserHasInteracted.set(componentId, true);
-      
       return newState;
     });
   };

@@ -8,9 +8,12 @@ import './ChatInterface.css';
 
 interface ChatInterfaceProps {
   onToolCalls: (toolCalls: ToolCall[]) => void;
+  onToolResultsReady?: (
+    sendToolResults: (toolResults: Array<{ toolCallId: string; result: string; success: boolean }>) => Promise<void>
+  ) => void;
 }
 
-export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onToolCalls }) => {
+export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onToolCalls, onToolResultsReady }) => {
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const {
@@ -21,6 +24,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onToolCalls }) => 
     streamingText,
     streamingThinking,
     sendMessage,
+    sendToolResults,
     cancelRequest,
     handleKeyPress,
     messagesEndRef,
@@ -30,6 +34,13 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onToolCalls }) => 
       setError(errorMessage);
     },
   });
+
+  // Expose sendToolResults to parent component
+  useEffect(() => {
+    if (onToolResultsReady && sendToolResults) {
+      onToolResultsReady(sendToolResults);
+    }
+  }, [onToolResultsReady, sendToolResults]);
 
   // Focus management: focus input after sending message
   useEffect(() => {

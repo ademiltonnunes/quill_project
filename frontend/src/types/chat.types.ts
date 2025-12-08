@@ -9,9 +9,10 @@ export interface ToolCall {
 
 export interface ChatMessage {
   id: string;
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'tool';
   content: string;
   toolCalls?: ToolCall[];
+  toolCallId?: string; // For tool result messages, links back to the original tool call
   thinking?: string;
 }
 

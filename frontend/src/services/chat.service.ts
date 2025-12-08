@@ -4,8 +4,9 @@ import { API_BASE_URL, CHAT_ENDPOINT } from '../config/constants';
 
 export interface ChatRequest {
   messages: Array<{
-    role: 'user' | 'assistant' | 'system';
+    role: 'user' | 'assistant' | 'system' | 'tool';
     content: string;
+    tool_call_id?: string; // For tool result messages
   }>;
   tools?: ToolDefinition[];
 }
