@@ -3,21 +3,21 @@ import type { ToolDefinition } from '../types';
 export const tableToolDefinitions: ToolDefinition[] = [
   {
     name: 'filterTable',
-    description: 'Filter the table rows based on column criteria. Supports operators: >, <, >=, <=, ==, !=, contains, startsWith, endsWith. All string comparisons are case-insensitive (e.g., "Sport", "sport", and "SPORT" will match the same). IMPORTANT: Use "contains" operator for partial text matches (e.g., user says "sport" to find "Sports" category). Use "==" only for exact matches when user specifies an exact value.',
+    description: 'Filter the table rows based on column criteria. Supports operators: >, <, >=, <=, ==, !=, contains, startsWith, endsWith. All string comparisons are case-insensitive (e.g., "Sport", "sport", and "SPORT" will match the same). For date column, use operators >, <, >=, <=, ==, != with dates in YYYY-MM-DD format (e.g., "2024-01-15"). IMPORTANT: Use "contains" operator for partial text matches (e.g., user says "sport" to find "Sports" category). Use "==" only for exact matches when user specifies an exact value.',
     input_schema: {
       type: 'object',
       properties: {
         column: {
           type: 'string',
-          description: 'The column name to filter (id, name, amount, status, date, category)',
+          description: 'The column name to filter (name, amount, status, date, category)',
         },
         operator: {
           type: 'string',
-          description: 'The comparison operator: >, <, >=, <=, ==, !=, contains, startsWith, endsWith',
+          description: 'The comparison operator: >, <, >=, <=, ==, !=, contains, startsWith, endsWith. For date column, use >, <, >=, <=, ==, !=',
         },
         value: {
           type: 'string',
-          description: 'The value to compare against (will be converted to appropriate type)',
+          description: 'The value to compare against. For dates, use YYYY-MM-DD format (e.g., "2024-01-15")',
         },
       },
       required: ['column', 'operator', 'value'],
@@ -31,7 +31,7 @@ export const tableToolDefinitions: ToolDefinition[] = [
       properties: {
         column: {
           type: 'string',
-          description: 'The column name to sort by (id, name, amount, status, date, category)',
+          description: 'The column name to sort by (name, amount, status, date, category)',
         },
         direction: {
           type: 'string',
@@ -75,16 +75,28 @@ export const tableToolDefinitions: ToolDefinition[] = [
   },
   {
     name: 'deleteRow',
-    description: 'Delete a row from the table by its ID',
+    description: 'Delete one or more rows from the table. You can delete by: 1) rowId (the internal ID), 2) name (the name field value), or 3) any column and value combination. Examples: delete by name "Widget A", delete rows where status="inactive", delete row with category="Electronics". If multiple rows match, all matching rows will be deleted.',
     input_schema: {
       type: 'object',
       properties: {
         rowId: {
           type: 'string',
-          description: 'The ID of the row to delete',
+          description: 'Optional: The ID of the row to delete. If provided, this takes precedence.',
+        },
+        name: {
+          type: 'string',
+          description: 'Optional: Delete row(s) with this name (case-insensitive match).',
+        },
+        column: {
+          type: 'string',
+          description: 'Optional: Column name to match against (name, amount, status, date, category). Must be used with value.',
+        },
+        value: {
+          type: 'string',
+          description: 'Optional: Value to match in the specified column. Must be used with column.',
         },
       },
-      required: ['rowId'],
+      required: [],
     },
   },
   {

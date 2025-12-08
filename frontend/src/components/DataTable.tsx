@@ -21,6 +21,7 @@ interface DataTableProps {
   columnFilters: ColumnFiltersState;
   onSortingChange: (sorting: SortingState) => void;
   onColumnFiltersChange: (filters: ColumnFiltersState) => void;
+  isExecutingTool?: boolean;
 }
 
 export const DataTable: React.FC<DataTableProps> = ({
@@ -29,6 +30,7 @@ export const DataTable: React.FC<DataTableProps> = ({
   columnFilters,
   onSortingChange,
   onColumnFiltersChange,
+  isExecutingTool = false,
 }) => {
   const [pagination, setPagination] = useState({
     pageIndex: 0,
@@ -37,12 +39,6 @@ export const DataTable: React.FC<DataTableProps> = ({
 
   const columns = useMemo<ColumnDef<TableRow>[]>(
     () => [
-      {
-        accessorKey: 'id',
-        header: 'ID',
-        enableSorting: true,
-        filterFn: customFilterFn,
-      },
       {
         accessorKey: 'name',
         header: 'Name',
@@ -106,7 +102,13 @@ export const DataTable: React.FC<DataTableProps> = ({
 
   return (
     <div className="data-table-container">
-      <div className="table-container">
+      <div className="table-container" style={{ position: 'relative' }}>
+        {isExecutingTool && (
+          <div className="tool-execution-overlay" role="status" aria-live="polite">
+            <div className="tool-execution-spinner"></div>
+            <span className="tool-execution-text">Executing tool calls...</span>
+          </div>
+        )}
         <table className="data-table">
           <thead>
             {table.getHeaderGroups().map((headerGroup) => (

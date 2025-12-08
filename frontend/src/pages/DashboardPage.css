@@ -55,6 +55,7 @@
   font-size: 0.9rem;
 }
 
+
 /* Responsive design */
 @media (max-width: 1024px) {
   .dashboard-content {

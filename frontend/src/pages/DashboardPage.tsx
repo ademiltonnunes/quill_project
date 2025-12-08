@@ -26,12 +26,19 @@ export const DashboardPage: React.FC = () => {
 
   const handleToolCalls = useCallback(
     async (toolCalls: ToolCall[]) => {
-      setIsExecutingTool(true);
       setToolError(null);
+      setIsExecutingTool(true);
+      
+      // Track start time to ensure minimum display duration
+      const startTime = Date.now();
+      const minDisplayDuration = 300; // Minimum 300ms to ensure visibility
 
       try {
         const toolResults: Array<{ toolCallId: string; result: string; success: boolean }> = [];
         const errors: string[] = [];
+
+        // Small delay to ensure React renders the loading state
+        await new Promise(resolve => setTimeout(resolve, 50));
 
         setTableData((prevData) => {
           let currentState: TableState = {
@@ -73,6 +80,12 @@ export const DashboardPage: React.FC = () => {
         if (sendToolResultsRef.current && toolResults.length > 0) {
           await sendToolResultsRef.current(toolResults);
         }
+
+        // Ensure minimum display duration
+        const elapsed = Date.now() - startTime;
+        if (elapsed < minDisplayDuration) {
+          await new Promise(resolve => setTimeout(resolve, minDisplayDuration - elapsed));
+        }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to execute tool calls';
         setToolError(errorMessage);
@@ -109,17 +122,13 @@ export const DashboardPage: React.FC = () => {
                   onDismiss={() => setToolError(null)}
                 />
               )}
-              {isExecutingTool && (
-                <div className="loading-state" role="status" aria-live="polite">
-                  <span>Executing tool calls...</span>
-                </div>
-              )}
               <DataTable
                 data={tableData}
                 sorting={sorting}
                 columnFilters={columnFilters}
                 onSortingChange={setSorting}
                 onColumnFiltersChange={setColumnFilters}
+                isExecutingTool={isExecutingTool}
               />
             </>
           )}
