@@ -1,0 +1,66 @@
+.thinking-message {
+  margin-top: 0.5rem;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  background-color: #f8f9fa;
+  overflow: hidden;
+}
+
+.thinking-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  background-color: #e9ecef;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.2s ease;
+}
+
+.thinking-header:hover {
+  background-color: #dee2e6;
+}
+
+.thinking-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #495057;
+}
+
+.thinking-icon {
+  font-size: 1rem;
+}
+
+.thinking-toggle {
+  background: none;
+  border: none;
+  font-size: 0.75rem;
+  color: #6c757d;
+  cursor: pointer;
+  padding: 0.25rem;
+  transition: transform 0.2s ease;
+}
+
+.thinking-toggle:hover {
+  color: #495057;
+}
+
+.thinking-content {
+  padding: 0.75rem;
+  background-color: #ffffff;
+  border-top: 1px solid #e0e0e0;
+}
+
+.thinking-content pre {
+  margin: 0;
+  font-family: 'Monaco', 'Courier New', monospace;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: #333;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+

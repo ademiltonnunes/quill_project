@@ -1,0 +1,24 @@
+.title-bar {
+  background-color: #333333;
+  color: #ffffff;
+  padding: 1.5rem 2rem;
+  text-align: center;
+}
+
+.title-bar h1 {
+  margin: 0;
+  font-size: 2rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+@media (max-width: 768px) {
+  .title-bar {
+    padding: 1rem;
+  }
+
+  .title-bar h1 {
+    font-size: 1.5rem;
+  }
+}
+
