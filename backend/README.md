@@ -59,6 +59,9 @@ flowchart TD
 
 ## Key Components
 
+<details>
+<summary>Click to expand component details</summary>
+
 ### Entry Point (`src/index.ts`)
 
 Handles incoming requests, routes to appropriate handlers, and manages CORS.
@@ -97,6 +100,8 @@ To switch providers, set the `AI_PROVIDER` environment variable to `claude`, `op
 - `cors.ts`: Handles CORS headers for cross-origin requests
 - `errors.ts`: Custom error classes for different error types
 - `router.ts`: Simple routing implementation for Cloudflare Workers
+
+</details>
 
 ## Configuration
 
