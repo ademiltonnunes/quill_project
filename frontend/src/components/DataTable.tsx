@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -32,10 +32,33 @@ export const DataTable: React.FC<DataTableProps> = ({
   onColumnFiltersChange,
   isExecutingTool = false,
 }) => {
+  const getResponsivePageSize = (): number => {
+    if (typeof window === 'undefined') return DEFAULT_PAGE_SIZE;
+    const width = window.innerWidth;
+    if (width <= 480) return 5; // Very small screens
+    if (width <= 768) return 7; // Small screens/tablets
+    return DEFAULT_PAGE_SIZE; // Desktop
+  };
+
   const [pagination, setPagination] = useState({
     pageIndex: 0,
-    pageSize: DEFAULT_PAGE_SIZE,
+    pageSize: getResponsivePageSize(),
   });
+
+  // Update page size on window resize
+  useEffect(() => {
+    const handleResize = () => {
+      setPagination((prev) => ({
+        ...prev,
+        pageSize: getResponsivePageSize(),
+        pageIndex: 0,
+      }));
+    };
+
+    window.addEventListener('resize', handleResize);
+    handleResize();
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const columns = useMemo<ColumnDef<TableRow>[]>(
     () => [
