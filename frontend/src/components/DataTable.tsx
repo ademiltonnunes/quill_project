@@ -88,21 +88,12 @@ export const DataTable: React.FC<DataTableProps> = ({
         return prev;
       });
       
-      requestAnimationFrame(() => {
-        if (tableRef.current && tableContainerRef.current) {
-          const tableHeight = tableRef.current.offsetHeight;
-          tableContainerRef.current.style.height = `${tableHeight}px`;
-        }
-      });
     };
 
     const container = containerRef.current;
     if (!container) return;
 
     const resizeObserver = new ResizeObserver(() => {
-      if (tableContainerRef.current) {
-        tableContainerRef.current.style.height = '';
-      }
       setTimeout(updatePageSize, 50);
     });
 

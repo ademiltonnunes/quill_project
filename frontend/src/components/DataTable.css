@@ -6,7 +6,6 @@
   padding: 1.5rem;
   gap: 0 !important;
   height: 100%;
-  position: relative;
 }
 
 .data-table-container > .table-container + .pagination {
@@ -14,7 +13,7 @@
 }
 
 .table-container {
-  flex: 0 1 auto;
+  flex: 1 1 auto;
   min-height: 0;
   overflow-x: auto;
   overflow-y: hidden;
@@ -26,7 +25,6 @@
   display: block;
   padding: 0;
   margin: 0;
-  height: auto;
 }
 
 .table-container::-webkit-scrollbar {
