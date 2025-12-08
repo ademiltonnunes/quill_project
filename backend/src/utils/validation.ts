@@ -19,6 +19,10 @@ export function validateMessage(message: unknown): message is Message {
     return false;
   }
 
+  if (msg.role === 'tool' && (typeof msg.tool_call_id !== 'string' || msg.tool_call_id.length === 0)) {
+    return false;
+  }
+
   if (typeof msg.content === 'string') {
     return true;
   }
