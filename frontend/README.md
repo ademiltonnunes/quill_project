@@ -181,6 +181,9 @@ State is updated through tool execution, not directly by user interaction with t
 
 ## Hooks
 
+<details>
+<summary>Click to expand Hooks details</summary>
+
 ### useChat (`src/hooks/useChat.ts`)
 
 Manages chat state and communication with the backend:
@@ -198,6 +201,8 @@ The hook handles the complete tool calling cycle:
 3. Tools are executed
 4. Tool results are sent back to AI
 5. AI provides final response
+
+</details>
 
 ## Services
 
@@ -277,12 +282,17 @@ State updates flow:
 
 ## Error Handling
 
+<details>
+<summary>Click to expand Error Handling details</summary>
+
 Error handling is implemented at multiple levels:
 
 - **Network errors**: Handled by chat service with user-friendly messages
 - **Tool execution errors**: Displayed in tool error messages
 - **Validation errors**: Prevented through input validation
 - **Stream errors**: Handled gracefully with fallback messages
+
+</details>
 
 ## Configuration
 
