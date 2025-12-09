@@ -2,6 +2,11 @@
 
 AI-powered table management system that enables natural language interaction with data tables through tool calling. Users can filter, sort, add, and remove table rows using conversational commands processed by Claude AI.
 
+## Quick Links
+
+- **Live URL**: [https://quill-frontend.pages.dev](https://quill-frontend.pages.dev)
+- **Video Demo**: [Watch on Loom](https://www.loom.com/share/35728fd921794e25b093278dbd5474c1)
+
 ## Overview
 
 This project consists of two main components:
